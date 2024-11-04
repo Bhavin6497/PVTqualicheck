@@ -14,6 +14,8 @@ from dash.exceptions import PreventUpdate
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
+import os
+from dash import Dash
 
 # Initialize the app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.COSMO])
@@ -3336,8 +3338,9 @@ def update_table(submit_clicks,clear_clicks,Bodb_old,Bodb_new,Rsdb_old,Rsdb_new,
 
 
 
-# Run the app
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    # Use the PORT environment variable for deployment
+    port = int(os.environ.get("PORT", 8050))  # Default to 8050 if PORT is not set
+    app.run_server(host='0.0.0.0', port=port, debug=True)
 
 
