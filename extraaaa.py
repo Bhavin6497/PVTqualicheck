@@ -14,20 +14,19 @@ from dash.exceptions import PreventUpdate
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
-import os
-from dash import Dash
 
 # Initialize the app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.COSMO])
 
 # Sample columns for DataTable
-columns = ['Pressure', 'Vrel']
+columns = ['Pressure(Psig)', 'Vrel']
 columns_density = ['Pressure(Psig)', 'Pressure(Psia)', 'Bod_Old', 'Rsd_Smoothed', 'SG_Smoothed', 'Oil_Density_Calculated']
 columns_separtor = [
     'Separtor_Pressure-1', 'Separtor_Temperature-1', 'Separator_GOR-1', 'Separator_SG-1',
     'Stock_Tank_GOR', 'Stock_Tank_SG', 'Stock_Tank_Oil_Gravity', 'Bofb_Old_Lab',
-    'Density_at_Old_Pb', 'Bofb_Old_Density_Corrected', 'Bofb_New', 'Rsfb_New'
+    'Density_at_Old_Pb', 'Bofb_Old_Density_Corrected','Rsfb_Old', 'Bofb_New', 'Rsfb_New'
 ]
+columns_Final_Result = ['Pressure(Psig)','Pressure(Psia)','Bod','Rsd','Btd','Vrel_CME','Bo','Rs','Bt','Z-Factor','Bg','Eg','SG','Oil Density(gm/cc)']
 columns_ = ['Pressure', 'Vrel','Pressure(Psia)','Y-Function','Vrel_New','Oil_Compressibility(1/Psi)']
 datatable_columns = [
     {'name': col, 'id': col, 'type': 'numeric', 'format': Format(precision=3, scheme=Scheme.fixed)}
@@ -38,6 +37,9 @@ datatable_columns_separtor = [{'name': 'Separator_Test', 'id': 'Separator_Test',
     {'name': col, 'id': col, 'type': 'numeric', 'format': Format(precision=3, scheme=Scheme.fixed)}
     for col in columns_separtor
 ]
+datatable_columns_Final_Result =  [{'name': col, 'id': col, 'type': 'numeric', 'format': Format(precision=3, scheme=Scheme.fixed)}for col in columns_Final_Result]
+
+
 data_separator = [{'Separator_Test': f'Sep_Test-{i + 1}', **{col['id']: '' for col in datatable_columns_separtor[1:]}} for i in range(10)]
 datatable_columns_density = [
     {'name': col, 'id': col, 'type': 'numeric', 'format': Format(precision=3, scheme=Scheme.fixed)}
@@ -52,9 +54,9 @@ datatable_columns_density_Extended = [
 result_datatable_columns = [
     {'name': col, 'id': col, 'type': 'numeric', 'format': Format(precision=3, scheme=Scheme.fixed)}
     if col != 'Oil_Compressibility(1/Psi)' else {'name': col, 'id': col, 'type': 'numeric','format': Format(precision=9, scheme=Scheme.fixed)}
-    for col in ['Pressure', 'Vrel', 'Pressure(Psia)', 'Y-Function', 'Vrel_New', 'Oil_Compressibility(1/Psi)']
+    for col in ['Pressure(Psig)', 'Vrel', 'Pressure(Psia)', 'Y-Function', 'Vrel_New', 'Oil_Compressibility(1/Psi)']
 ]
-
+separator_test_values = [row['Separator_Test'] for row in data_separator]
 
 # Global variable to store the DataFrame
 global_df_CME = pd.DataFrame(columns=columns)
@@ -1307,7 +1309,45 @@ app.layout = dbc.Container([
                                     ], style={'margin-top': '10px'}),
                                 ], width=12),  # Content in 2-column width
 
-                            ]),], fluid=True)]), style={'font-family': 'Arial', 'font-size': '14px'}),
+                            ]),
+
+                            html.Br(),
+
+                             dbc.Row([
+            
+                                            html.Div(
+                                        dcc.Dropdown(
+                                            id='separator-dropdown',
+                                            options=[{'label': value, 'value': value} for value in separator_test_values],
+                                            placeholder='Select Separator Test to View Final Result',
+                                            value=None,  # No default value
+                                            clearable=True,  # Allows clearing the selection
+                                            style={'margin-bottom': '20px'}  # Add space between dropdown and DataTable
+                                        )
+                                    ),
+                                        # DataTable component
+                                        dash_table.DataTable(
+                                            id='Final_Result_Summary',
+                                            columns=datatable_columns_Final_Result,
+                                            data=[],
+                                            persistence=True,
+                                            persistence_type='session',
+                                            persisted_props=['data'],
+                                            editable=True,
+                                            row_deletable=True,
+                                            style_table={'width': '100%', 'overflowX': 'auto', 'height': '400px', 'paddingLeft': '10px'},
+                                            style_cell={
+                                                'fontFamily': 'Arial',
+                                                'fontSize': '14px',
+                                                'minWidth': '50px', 'width': '100px', 'maxWidth': '200px',
+                                                'height': '20px', 'padding': '2px', 'lineHeight': '20px'
+                                            },
+                                            style_data={
+                                                'whiteSpace': 'normal', 'height': '20px',
+                                            }
+                                        )
+                                    ])
+                            ], fluid=True)]), style={'font-family': 'Arial', 'font-size': '14px'}),
             ])
         ], width=12),  # Tab content covers 10 columns
           # Empty column for spacing
@@ -1372,21 +1412,21 @@ def update_data(submit_clicks, clear_clicks, clickData, clickdata_1, current_dat
 
         # Recalculate based on new data
         CME = global_df_CME.copy()
-        CME['Pressure(Psia)'] = CME['Pressure'] + 14.7
+        CME['Pressure(Psia)'] = CME['Pressure(Psig)'] + 14.7
 
-        CME_b_Pb = CME[CME['Pressure'] <= old_Pb].copy()
-        CME_b_Pb['Y-Function'] = (CME_b_Pb['Pressure'] - old_Pb) / (
+        CME_b_Pb = CME[CME['Pressure(Psig)'] <= old_Pb].copy()
+        CME_b_Pb['Y-Function'] = (CME_b_Pb['Pressure(Psig)'] - old_Pb) / (
                 (CME_b_Pb['Pressure(Psia)']) * (1 - CME_b_Pb['Vrel']))
         CME_b_Pb_c = CME_b_Pb.dropna()
-        CME_a_Pb = CME[CME['Pressure'] > old_Pb].copy()
+        CME_a_Pb = CME[CME['Pressure(Psig)'] > old_Pb].copy()
         CME_a_Pb['Y-Function'] = np.nan
         CME_NewPb = pd.DataFrame(
-            [{'Pressure': New_Pb, 'Vrel': np.nan, 'Pressure(Psia)': New_Pb + 14.7, 'Y-Function': np.nan}])
+            [{'Pressure(Psig)': New_Pb, 'Vrel': np.nan, 'Pressure(Psia)': New_Pb + 14.7, 'Y-Function': np.nan}])
         CME_new = pd.concat([CME_b_Pb, CME_a_Pb, CME_NewPb], ignore_index=True)
-        CME_new = CME_new.sort_values(by='Pressure', ascending=False)
+        CME_new = CME_new.sort_values(by='Pressure(Psig)', ascending=False)
         global_df_CME_new = CME_new
         print(CME_new)
-        x = CME_b_Pb_c['Pressure'].values
+        x = CME_b_Pb_c['Pressure(Psig)'].values
         y = CME_b_Pb_c['Y-Function'].values
         x_a = CME_a_Pb['Pressure(Psia)'].values
         y_a = CME_a_Pb['Vrel'].values
@@ -1522,7 +1562,7 @@ def update_data(submit_clicks, clear_clicks, clickData, clickdata_1, current_dat
 
 
     elif trigger_id == 'clear-button':
-        global_df_CME = pd.DataFrame(columns=['Pressure', 'Vrel'])  # Clear the global DataFrame
+        global_df_CME = pd.DataFrame(columns=['Pressure(Psig)', 'Vrel'])  # Clear the global DataFrame
         fig = {
         'data': [],
         'layout': go.Layout(
@@ -1676,15 +1716,15 @@ def update_data(submit_clicks, clear_clicks, clickData, clickdata_1, current_dat
 )
 def update_data(df, slope_b, intercept_b, slope_a, intercept_a, old_pb, new_pb):
     CME_new_df = pd.DataFrame(df)
-    CME_below_Pb = CME_new_df[CME_new_df['Pressure'] < new_pb].copy()
-    CME_above_Pb = CME_new_df[CME_new_df['Pressure'] > new_pb].copy()
-    CME_at_Pb = CME_new_df[CME_new_df['Pressure'] == new_pb].copy()
-    CME_below_Pb['Vrel_New'] = 1 + ((new_pb - CME_below_Pb['Pressure']) / (
-                CME_below_Pb['Pressure(Psia)'] * (slope_b * CME_below_Pb['Pressure'] + intercept_b)))
+    CME_below_Pb = CME_new_df[CME_new_df['Pressure(Psig)'] < new_pb].copy()
+    CME_above_Pb = CME_new_df[CME_new_df['Pressure(Psig)'] > new_pb].copy()
+    CME_at_Pb = CME_new_df[CME_new_df['Pressure(Psig)'] == new_pb].copy()
+    CME_below_Pb['Vrel_New'] = 1 + ((new_pb - CME_below_Pb['Pressure(Psig)']) / (
+                CME_below_Pb['Pressure(Psia)'] * (slope_b * CME_below_Pb['Pressure(Psig)'] + intercept_b)))
     CME_at_Pb['Vrel_New'] = 1
-    CME_above_Pb['Vrel_New'] = 1 - (new_pb - CME_above_Pb['Pressure']) * (slope_a)
+    CME_above_Pb['Vrel_New'] = 1 - (new_pb - CME_above_Pb['Pressure(Psig)']) * (slope_a)
     diff_column1 = CME_above_Pb['Vrel_New'].diff()
-    diff_column2 = CME_above_Pb['Pressure'].diff()
+    diff_column2 = CME_above_Pb['Pressure(Psig)'].diff()
     CME_above_Pb['Oil_Compressibility(1/Psi)'] = np.abs(diff_column1 / (diff_column2 * CME_above_Pb['Vrel_New']))
     CME_below_Pb['Oil_Compressibility(1/Psi)'] = np.nan
     CME_at_Pb['Oil_Compressibility(1/Psi)'] = np.nan
@@ -2107,6 +2147,7 @@ def update_store(submit_clicks, clear_clicks, click_Z, selected_option, selected
             df_result = pd.concat([Z_result_df, new_pb_row], ignore_index=True)
             df_result = df_result.drop_duplicates(subset='Pressure(Psig)', keep='first')
             df_result.sort_values(by='Pressure(Psig)', ascending=False,inplace = True)
+            df_result = df_result[df_result['Pressure(Psig)']<=New_Pb]
             z_smooth_pressure = df_result['Pressure(Psia)'].values
             df_result['Z-Factor_Smoothed'] = model_func_hyperbolic(z_smooth_pressure, *popt)
             Temperature_R = (Reservoir_Temperature+273.15)*(9/5)
@@ -2157,8 +2198,8 @@ def update_store(submit_clicks, clear_clicks, click_Z, selected_option, selected
             df_result = pd.concat([Z_result_df, new_pb_row], ignore_index=True)
             df_result = df_result.drop_duplicates(subset='Pressure(Psig)', keep='first')
             df_result.sort_values(by='Pressure(Psig)', ascending=False,inplace = True)
+            df_result = df_result[df_result['Pressure(Psig)']<=New_Pb]
             z_smooth_pressure = df_result['Pressure(Psia)'].values.reshape(-1,1)
-            print(z_smooth_pressure)
             z_smooth_pressure_mapped = poly.transform(z_smooth_pressure)
             z_smooth_pressure_mapped_scaled = scaler_poly.transform(z_smooth_pressure_mapped)
             z_smooth_p = model.predict(z_smooth_pressure_mapped_scaled)  # Predict new y values based on updated model
@@ -2733,6 +2774,9 @@ def update_store(submit_clicks, clear_clicks, click_SG, selected_option, selecte
     def Decline_hyperbolic(x,a,b,c,d):
         return a / ((c*d*x + b)**(1/c))
 
+    df_n = pd.DataFrame(current_data)
+    df_1 = df_n.copy()
+    Rsd_Density = df_1[['Pressure(Psig)', 'Pressure(Psia)', 'Rsd_Smoothed']]
 
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -2742,8 +2786,6 @@ def update_store(submit_clicks, clear_clicks, click_SG, selected_option, selecte
 
     if trigger_id in ['submit-button_SG_1', 'SG-checklist', 'SG-subchecklist']:
         df = pd.DataFrame(current_data)
-        df_1 =df.copy()
-        Rsd_Density = df_1[['Pressure(Psig)', 'Pressure(Psia)','Rsd_Smoothed']]
         ind = df[df['Pressure(Psig)'] == old_Pb].index[0]
         Rsd_old_pb = df.loc[ind, 'Rsd']
         df['Rsd_d'] = Rsd_old_pb - df['Rsd']
@@ -2812,9 +2854,10 @@ def update_store(submit_clicks, clear_clicks, click_SG, selected_option, selecte
             SG_Density=df_result_b[['Pressure(Psig)','SG_Smoothed']]
             SG_Density = SG_Density[SG_Density['Pressure(Psig)']<=old_Pb]
             SG_Density = SG_Density[['SG_Smoothed']]
-            Rsd_Density = Rsd_Density.reset_index(drop=True)
+            Rsd_Density_1 = Rsd_Density.copy()
+            Rsd_Density_1 = Rsd_Density_1.reset_index(drop=True)
             SG_Density= SG_Density.reset_index(drop=True)
-            Rsd_SG_Density= pd.concat([Rsd_Density, SG_Density], axis=1)
+            Rsd_SG_Density= pd.concat([Rsd_Density_1, SG_Density], axis=1)
             x_new_SG = np.random.randint(np.min(SG_smooth_pressure), np.max(SG_smooth_pressure) + 1, 300)
             x_new_SG = np.sort(np.concatenate(([np.min(SG_smooth_pressure), np.max(SG_smooth_pressure)], x_new_SG)))
             y_new_SG = model_func(x_new_SG, *popt)
@@ -2857,9 +2900,10 @@ def update_store(submit_clicks, clear_clicks, click_SG, selected_option, selecte
             SG_Density = df_result_b[['Pressure(Psig)', 'SG_Smoothed']]
             SG_Density = SG_Density[SG_Density['Pressure(Psig)'] <= old_Pb]
             SG_Density = SG_Density[['SG_Smoothed']]
-            Rsd_Density = Rsd_Density.reset_index(drop=True)
+            Rsd_Density_1 = Rsd_Density.copy()
+            Rsd_Density_1 = Rsd_Density_1.reset_index(drop=True)
             SG_Density = SG_Density.reset_index(drop=True)
-            Rsd_SG_Density = pd.concat([Rsd_Density, SG_Density], axis=1)
+            Rsd_SG_Density = pd.concat([Rsd_Density_1, SG_Density], axis=1)
             x_new_SG = np.random.randint(np.min(df_result_b['Pressure(Psia)']), np.max(df_result_b['Pressure(Psia)']) + 1,
                                         300)
             x_new_SG = np.sort(
@@ -2918,14 +2962,13 @@ def update_store(submit_clicks, clear_clicks, click_SG, selected_option, selecte
                                                        i - 1]) / df_7['Rsd_d_1'].iloc[i]
             df_r.drop(columns=['SG_Smoothed', 'SG_Cum_Smoothed'], inplace=True)
             df_r = pd.merge(df_r, df_7[['Pressure(Psig)', 'SG_Smoothed', 'SG_Cum_Smoothed']], on='Pressure(Psig)', how='left')
-            Rsd_Density = df_7[['Pressure(Psig','Pressure(Psia)','Rsd_Smoothed']]
-            Rsd_Density = Rsd_Density[Rsd_Density['Pressure(Psig)'] <= old_Pb]
+            Rsd_Density_1 = Rsd_Density.copy()
+            Rsd_Density_1 = Rsd_Density_1.reset_index(drop=True)
             SG_Density = df_r[['Pressure(Psig)', 'SG_Smoothed']]
             SG_Density = SG_Density[SG_Density['Pressure(Psig)'] <= old_Pb]
             SG_Density = SG_Density[['SG_Smoothed']]
-            Rsd_Density = Rsd_Density.reset_index(drop=True)
             SG_Density = SG_Density.reset_index(drop=True)
-            Rsd_SG_Density = pd.concat([Rsd_Density, SG_Density], axis=1)
+            Rsd_SG_Density = pd.concat([Rsd_Density_1, SG_Density], axis=1)
             x_new_SG = np.random.randint(np.min(SG_smooth_pressure), np.max(SG_smooth_pressure) + 1, 300)
             x_new_SG = np.sort(np.concatenate(([np.min(SG_smooth_pressure), np.max(SG_smooth_pressure)], x_new_SG)))
             y_new_SG = model_func(x_new_SG, *popt)
@@ -2956,14 +2999,13 @@ def update_store(submit_clicks, clear_clicks, click_SG, selected_option, selecte
                                                        i - 1]) / df_7['Rsd_d_1'].iloc[i]
             df_r.drop(columns=['SG_Smoothed', 'SG_Cum_Smoothed'], inplace=True)
             df_r = pd.merge(df_r, df_7[['Pressure(Psig)', 'SG_Smoothed', 'SG_Cum_Smoothed']], on='Pressure(Psig)', how='left')
-            Rsd_Density = df_7[['Pressure(Psig', 'Pressure(Psia)', 'Rsd_Smoothed']]
-            Rsd_Density = Rsd_Density[Rsd_Density['Pressure(Psig)'] <= old_Pb]
+            Rsd_Density_1 = Rsd_Density.copy()
+            Rsd_Density_1 = Rsd_Density_1.reset_index(drop=True)
             SG_Density = df_r[['Pressure(Psig)', 'SG_Smoothed']]
             SG_Density = SG_Density[SG_Density['Pressure(Psig)'] <= old_Pb]
             SG_Density = SG_Density[['SG_Smoothed']]
-            Rsd_Density = Rsd_Density.reset_index(drop=True)
             SG_Density = SG_Density.reset_index(drop=True)
-            Rsd_SG_Density = pd.concat([Rsd_Density, SG_Density], axis=1)
+            Rsd_SG_Density = pd.concat([Rsd_Density_1, SG_Density], axis=1)
             x_new_SG = np.array(x_new_SG_)
             x_new_SG_ = x_new_SG.flatten()
             x_new_SG_mapped_scaled = np.array(x_new_SG_mapped_scaled_)
@@ -3174,6 +3216,7 @@ def update_table(submit_clicks, clear_clicks,CME_Vrel,SG,Bod_result,Rsd_result,S
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
     if button_id == 'submit-button_Extended':
+        
         slope_CME = CME_Vrel.get('data1', 'No data for data1')
         df_Bod = pd.DataFrame(Bod_result)
         df_Rsd = pd.DataFrame(Rsd_result)
@@ -3310,15 +3353,16 @@ def update_table(submit_clicks,clear_clicks,Bodb_old,Bodb_new,Rsdb_old,Rsdb_new,
 
     if button_id == 'submit-button_separator':
         df_table = pd.DataFrame(current_data)
-        numeric_columns = ['Separtor_Pressure-1', 'Separtor_Temperature-1', 'Separator_GOR-1', 'Separator_SG-1',
-                           'Stock_Tank_GOR', 'Stock_Tank_SG', 'Stock_Tank_Oil_Gravity', 'Bofb_Old_Lab',
-                           'Density_at_Old_Pb', 'Bofb_Old_Density_Corrected', 'Bofb_New', 'Rsfb_New']
-        df_table = df_table[numeric_columns].apply(pd.to_numeric, errors='coerce')
+        for col in df_table.columns:
+            if col != 'Separator_Test':
+                df_table[col] = pd.to_numeric(df_table[col], errors='coerce')
         if S_stage==1:
             df_table['Density_at_Old_Pb'] = (df_table['Stock_Tank_Oil_Gravity']+(0.001225*(df_table['Separator_GOR-1']*df_table['Separator_SG-1']+df_table['Stock_Tank_GOR']*df_table['Stock_Tank_SG'])))/df_table['Bofb_Old_Lab']
             df_table['Bofb_Old_Density_Corrected'] = (df_table['Stock_Tank_Oil_Gravity']+(0.001225*df_table['Separator_GOR-1']*df_table['Separator_SG-1']))/(Density_oil_old)
             df_table['Bofb_New'] = (Bodb_new/Bodb_old)*df_table['Bofb_Old_Density_Corrected']
-            df_table['Rsfb_New'] = (Rsdb_new / Rsdb_old) * (df_table['Stock_Tank_GOR']+df_table['Separator_GOR-1'])
+            df_table['Rsfb_Old'] = df_table['Stock_Tank_GOR']+df_table['Separator_GOR-1']
+            df_table['Rsfb_New'] = (Rsdb_new / Rsdb_old) * (df_table['Rsfb_Old'])
+
 
         return df_table.to_dict('records')
 
@@ -3332,8 +3376,89 @@ def update_table(submit_clicks,clear_clicks,Bodb_old,Bodb_new,Rsdb_old,Rsdb_new,
         return cleared_data
     return current_data
 
+@app.callback(
+    Output('Final_Result_Summary', 'data'),
+    Input('separator-dropdown', 'value'),
+    State('result-table_Bod', 'data'),
+    State('result-table_Z', 'data'),
+    State('result-table_Rsd', 'data'),
+    State('result-table_SG', 'data'),
+    State('output-corrected_Density', 'data'),
+    State('output-table_Extended_Density', 'data'),
+    State('output-table_separator', 'data'),
+    State('old-pb-input_d', 'value'),
+    State('new-pb-input_d', 'value'),
+    State('Rsdb_old_S', 'data'),
+    State('Rsdb_new_S', 'data'),
+    State('Bodb_old_S', 'data'),
+    State('Bodb_new_S', 'data'),
+    State('store-data_Vrel', 'data'),
+    prevent_initial_call=True
+)
+
+def update_table(selected_value, data_bod, data_z, data_rsd, data_sg, corrected_density, extended_density, data_separator,old_pb,new_pb,Rsdb_old,Rsdb_new,Bodb_old,Bodb_new,CME_Vrel):
+    
+        
+    if selected_value:
+        filtered_data = [row for row in data_separator if row['Separator_Test'] == selected_value]
+        Rsfb_old = filtered_data[0]['Rsfb_Old']
+        Rsfb_new = filtered_data[0]['Rsfb_New']
+        Bofb_old = filtered_data[0]['Bofb_Old_Density_Corrected']
+        Bofb_new =  filtered_data[0]['Bofb_New']
+        Rsdb_old = Rsdb_old 
+        Rsdb_new = Rsdb_new
+        Bodb_old = Bodb_old
+        Bodb_new =  Bodb_new
+        corrected_density = pd.DataFrame(corrected_density)
+        df_Rsd = pd.DataFrame(data_rsd)
+        df_SG = pd.DataFrame(data_sg)
+        df_Z = pd.DataFrame(data_z)
+        df_ext_density = pd.DataFrame(extended_density)
+        slope_CME = CME_Vrel.get('data1', 'No data for data1')
+        if old_pb==new_pb:
+            corrected_density['Pressure(Psia)']=corrected_density['Pressure(Psig)']+14.7
+            corrected_density = corrected_density[['Pressure(Psig)','Pressure(Psia)','Corrected_Bod','Corrected_Density']]
+            df_1 = pd.merge(corrected_density, df_Rsd[['Pressure(Psig)', 'Rsd_Smoothed']], on='Pressure(Psig)', how='left')
+            df_2= pd.merge(df_1, df_SG[['Pressure(Psig)', 'SG_Smoothed']], on='Pressure(Psig)', how='left')
+            df_4= pd.merge(df_2, df_Z[['Pressure(Psig)', 'Z-Factor_Smoothed','Eg','Gas Formation Volume Factor']], on='Pressure(Psig)', how='left')
+            df_4_a = df_4[df_4['Pressure(Psig)']>old_pb]
+            df_4_b = df_4[df_4['Pressure(Psig)']<=old_pb]
+            df_4_a['Vrel_CME'] = 1-(old_pb-df_4_a['Pressure(Psig)'])*slope_CME
+            df_4_b['Bo'] = Bofb_old*df_4_b['Corrected_Bod']/Bodb_old
+            matching_row = df_4_b.loc[df_4_b['Pressure(Psig)'] == old_pb, 'Bo']
+            Bob = matching_row.iloc[0]
+            df_4_a['Bo'] = Bob*df_4_a['Vrel_CME']
+            df_4_a['Rsd_Smoothed'] = Rsdb_old
+            Final_Table = pd.concat([df_4_a, df_4_b], ignore_index=True)
+            Final_Table['Rs'] = Rsfb_old*Final_Table['Rsd_Smoothed']/Rsdb_old
+            Final_Table['Btd']= Final_Table['Corrected_Bod']+(Final_Table['Gas Formation Volume Factor']*(Rsdb_old-Final_Table['Rsd_Smoothed']))
+            Final_Table['Bt']= Final_Table['Btd']*Bofb_old/Bodb_old
+            Final_Table.rename(columns = {'Corrected_Bod':'Bod','Corrected_Density':'Oil Density(gm/cc)','SG_Smoothed':'SG','Z-Factor_Smoothed':'Z-Factor','Gas Formation Volume Factor':'Bg','Rsd_Smoothed':'Rsd'},inplace=True)
+            Final_Table = Final_Table[['Pressure(Psig)','Pressure(Psia)','Bod','Rsd','Btd','Vrel_CME','Bo','Rs','Bt','Z-Factor','Bg','Eg','SG','Oil Density(gm/cc)']]
+
+        else:
+            df_ext_density = df_ext_density[['Pressure(Psig)','Pressure(Psia)','Bod_Density_Corrected_Extended','Oil_Density_Calculated']]
+            df_1 = pd.merge(df_ext_density, df_Rsd[['Pressure(Psig)', 'Rsd_Smoothed']], on='Pressure(Psig)', how='left')
+            df_2= pd.merge(df_1, df_SG[['Pressure(Psig)', 'SG_Smoothed']], on='Pressure(Psig)', how='left')
+            df_4= pd.merge(df_2, df_Z[['Pressure(Psig)', 'Z-Factor_Smoothed','Eg','Gas Formation Volume Factor']], on='Pressure(Psig)', how='left')
+            df_4_a = df_4[df_4['Pressure(Psig)']>new_pb]
+            df_4_b = df_4[df_4['Pressure(Psig)']<=new_pb]
+            df_4_a['Vrel_CME'] = 1-(new_pb-df_4_a['Pressure(Psig)'])*slope_CME
+            df_4_b['Bo'] = Bofb_new*df_4_b['Bod_Density_Corrected_Extended']/Bodb_new
+            matching_row = df_4_b.loc[df_4_b['Pressure(Psig)'] == new_pb, 'Bo']
+            Bob = matching_row.iloc[0]
+            df_4_a['Bo'] = Bob*df_4_a['Vrel_CME']
+            df_4_a['Rsd_Smoothed'] = Rsdb_new
+            Final_Table = pd.concat([df_4_a, df_4_b], ignore_index=True)
+            Final_Table['Rs'] = Rsfb_new*Final_Table['Rsd_Smoothed']/Rsdb_new
+            Final_Table['Btd']= Final_Table['Bod_Density_Corrected_Extended']+(Final_Table['Gas Formation Volume Factor']*(Rsdb_new-Final_Table['Rsd_Smoothed']))
+            Final_Table['Bt']= Final_Table['Btd']*Bofb_new/Bodb_new
+            print(Final_Table)
+            Final_Table.rename(columns = {'Bod_Density_Corrected_Extended':'Bod','Oil_Density_Calculated':'Oil Density(gm/cc)','SG_Smoothed':'SG','Z-Factor_Smoothed':'Z-Factor','Gas Formation Volume Factor':'Bg','Rsd_Smoothed':'Rsd'},inplace=True)
+            Final_Table = Final_Table[['Pressure(Psig)','Pressure(Psia)','Bod','Rsd','Btd','Vrel_CME','Bo','Rs','Bt','Z-Factor','Bg','Eg','SG','Oil Density(gm/cc)']]
 
 
+    return Final_Table.to_dict('records')
 
 
 
@@ -3342,5 +3467,3 @@ if __name__ == '__main__':
     # Use the PORT environment variable for deployment
     port = int(os.environ.get("PORT", 8050))  # Default to 8050 if PORT is not set
     app.run_server(host='0.0.0.0', port=port, debug=True)
-
-
