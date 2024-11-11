@@ -3461,7 +3461,50 @@ def update_table(selected_value, data_bod, data_z, data_rsd, data_sg, corrected_
 
     return Final_Table.to_dict('records')
 
+@app.callback(
+    Output('scatter-plot_separator', 'figure'),
+    Input('x-axis-dropdown_separator', 'value'),
+    Input('y-axis-dropdown_separator', 'value'),
+    State('Final_Result_Summary', 'data'),
+    prevent_initial_call=True
+)
+def update_scatter_plot(x_axis, y_axis, df_result):
+    df = pd.DataFrame(df_result)
+    if x_axis and y_axis:
+        # Filter out rows with NaN values in the selected columns
+        filtered_df = df[pd.notna(df[x_axis]) & pd.notna(df[y_axis])]
+        # Create the scatter plot using graph_objects
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=filtered_df[x_axis],
+            y=filtered_df[y_axis],
+            mode='markers+lines',
+            line_shape='spline',
+            marker=dict(size=12)
+        ))
 
+        # Update the layout
+        fig.update_layout(
+             title={
+                'text': f"Scatter Plot of {x_axis} vs {y_axis}",
+                'font': {'family': 'Arial', 'size': 15, 'color': 'black'},
+                'x': 0.5,  # Center the title
+                'xanchor': 'center',
+                'yanchor': 'top'
+            },
+            font=dict(family='Arial', size=14),
+            plot_bgcolor='white',
+            xaxis_title=x_axis,
+            yaxis_title=y_axis,
+            showlegend=False,
+        )
+        fig.update_xaxes(showgrid=True, linecolor='black')
+        fig.update_yaxes(showgrid=True, linecolor='black')
+
+        return fig
+
+    # Return an empty figure if no valid selection
+    return go.Figure()
 
 
 if __name__ == '__main__':
