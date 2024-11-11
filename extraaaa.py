@@ -15,10 +15,10 @@ from dash.exceptions import PreventUpdate
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
+import plotly.express as px
 
 # Initialize the app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.COSMO])
-
 # Sample columns for DataTable
 columns = ['Pressure(Psig)', 'Vrel']
 columns_density = ['Pressure(Psig)', 'Pressure(Psia)', 'Bod_Old', 'Rsd_Smoothed', 'SG_Smoothed', 'Oil_Density_Calculated']
@@ -1347,13 +1347,54 @@ app.layout = dbc.Container([
                                                 'whiteSpace': 'normal', 'height': '20px',
                                             }
                                         )
+                                    ]),
+
+                                    html.Br(),
+                                    
+                                    dbc.Row([
+                                    dbc.Col([], width=2),  # Empty column for left spacing
+
+                                    dbc.Col([
+                                        # Row for dropdowns placed side by side
+                                        dbc.Row([
+                                            # X-axis dropdown
+                                            dbc.Col([
+                                                html.Label("Select X-axis:", style={'font-family': 'Arial', 'font-size': '14px'}),
+                                                dcc.Dropdown(
+                                                    id='x-axis-dropdown_separator',
+                                                    options=[{'label': col, 'value': col} for col in columns_Final_Result],
+                                                    value=None,  # Default selection
+                                                    clearable=False,
+                                                    style={'margin-bottom': '10px'}
+                                                ),
+                                            ], width=6),
+
+                                            # Y-axis dropdown
+                                            dbc.Col([
+                                                html.Label("Select Y-axis:", style={'font-family': 'Arial', 'font-size': '14px'}),
+                                                dcc.Dropdown(
+                                                    id='y-axis-dropdown_separator',
+                                                    options=[{'label': col, 'value': col} for col in columns_Final_Result],
+                                                    value=None,  # Default selection
+                                                    clearable=False,
+                                                    style={'margin-bottom': '10px'}
+                                                ),
+                                            ], width=6)
+                                        ], justify='center', style={'margin-bottom': '20px'}),
+
+                                        # Scatter plot graph
+                                        dcc.Graph(id='scatter-plot_separator', style={'height': '500px'})
+                                    ], width=8),
+
+                                    dbc.Col([], width=2)  # Empty column for right spacing
+                                ], style={'margin-bottom': '30px'})
+                                ,
+                                                            ], fluid=True)]), style={'font-family': 'Arial', 'font-size': '14px'}),
+                                            ])
+                                        ], width=12),  # Tab content covers 10 columns
+                                        # Empty column for spacing
                                     ])
-                            ], fluid=True)]), style={'font-family': 'Arial', 'font-size': '14px'}),
-            ])
-        ], width=12),  # Tab content covers 10 columns
-          # Empty column for spacing
-    ])
-], fluid=True)
+                                ], fluid=True)
 
 
 @callback(
@@ -3460,7 +3501,6 @@ def update_table(selected_value, data_bod, data_z, data_rsd, data_sg, corrected_
 
 
     return Final_Table.to_dict('records')
-
 @app.callback(
     Output('scatter-plot_separator', 'figure'),
     Input('x-axis-dropdown_separator', 'value'),
@@ -3505,7 +3545,6 @@ def update_scatter_plot(x_axis, y_axis, df_result):
 
     # Return an empty figure if no valid selection
     return go.Figure()
-
 
 if __name__ == '__main__':
     # Use the PORT environment variable for deployment
